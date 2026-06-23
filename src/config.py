@@ -13,6 +13,11 @@ report_day = os.environ.get(
 enterprise = os.environ.get("ENTERPRISE", "Ministry of Justice (UK)")
 price_per_unit = float(os.environ.get("PRICE_PER_UNIT", "0.01"))
 
+# GitHub API (report download). org mirrors download-reports.sh ORG default.
+org = os.environ.get("ORG", "ministryofjustice")
+# Required at download time; the downloader raises if missing/empty.
+github_token = os.environ.get("GITHUB_TOKEN", "")
+
 # S3 locations. Bucket/prefix values are environment placeholders until the
 # real paths are known; override via env vars without code changes.
 input_bucket = os.environ.get(
