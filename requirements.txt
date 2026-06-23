@@ -1,0 +1,2 @@
+awswrangler==3.16.1
+pandas==2.3.3
