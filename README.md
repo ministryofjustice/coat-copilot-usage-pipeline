@@ -11,12 +11,15 @@ billing API loop. Since 2026-06-19 the report carries a per-user
 
 ## What it does
 
-1. Reads the day's `users-1-day` report files (NDJSON, many partition files)
-   from S3.
-2. Validates the `ai_credits_used` field is present (reports predate 2026-06-19
+1. Downloads the day's `users-1-day` Copilot usage-metrics report from the
+   GitHub API (`GET /orgs/{org}/copilot/metrics/reports/users-1-day`) to the S3
+   input prefix, replacing any existing files for that day. Exits cleanly if the
+   report is not yet available.
+2. Reads those report files (NDJSON, many partition files) from S3.
+3. Validates the `ai_credits_used` field is present (reports predate 2026-06-19
    otherwise).
-3. Filters users with `ai_credits_used > 0` and builds one billing row per user.
-4. Writes a single consolidated Parquet file per day to S3 (queryable in Athena),
+4. Filters users with `ai_credits_used > 0` and builds one billing row per user.
+5. Writes a single consolidated Parquet file per day to S3 (queryable in Athena),
    avoiding the small-files problem.
 
 ## Output schema (one row per user)
@@ -36,6 +39,8 @@ billing API loop. Since 2026-06-19 the report carries a per-user
 | variable | default | description |
 |---|---|---|
 | `MODE` | `dev` | `dev` / `prod` dataset separation |
+| `ORG` | `ministryofjustice` | GitHub org for the metrics-reports API |
+| `GITHUB_TOKEN` | _(required)_ | token with Copilot metrics read access |
 | `REPORT_DAY` | yesterday (UTC) | target day, `YYYY-MM-DD` |
 | `ENTERPRISE` | `Ministry of Justice (UK)` | billing enterprise name |
 | `PRICE_PER_UNIT` | `0.01` | flat AI-credits price |
