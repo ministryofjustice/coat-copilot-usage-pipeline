@@ -1,8 +1,55 @@
-# Analytical Platform Airflow Python Template
+# COAT Copilot Usage Pipeline — AI Credits Extraction
 
 [![Ministry of Justice Repository Compliance Badge](https://github-community.service.justice.gov.uk/repository-standards/api/analytical-platform-airflow-python-template/badge)](https://github-community.service.justice.gov.uk/repository-standards/analytical-platform-airflow-python-template)
 
-This template repository equips you with the default initial files required for an Analytical Platform Airflow workflow.
+This repository contains a Python pipeline that runs as a container on the
+Analytical Platform's [Airflow infrastructure](https://github.com/ministryofjustice/analytical-platform-airflow).
+It derives per-user GitHub Copilot AI-credit billing data from the daily
+`users-1-day` Copilot usage-metrics report, replacing the rate-limited per-user
+billing API loop. Since 2026-06-19 the report carries a per-user
+`ai_credits_used` field, so no per-user API calls are needed.
+
+## What it does
+
+1. Reads the day's `users-1-day` report files (NDJSON, many partition files)
+   from S3.
+2. Validates the `ai_credits_used` field is present (reports predate 2026-06-19
+   otherwise).
+3. Filters users with `ai_credits_used > 0` and builds one billing row per user.
+4. Writes a single consolidated Parquet file per day to S3 (queryable in Athena),
+   avoiding the small-files problem.
+
+## Output schema (one row per user)
+
+| column | description |
+|---|---|
+| `year`, `month`, `day` | report date parts |
+| `enterprise` | billing enterprise name |
+| `user` | Copilot user login |
+| `product`, `sku`, `model`, `unit_type` | billing constants (Copilot AI Credits) |
+| `price_per_unit` | flat AI-credits price (default 0.01) |
+| `gross_quantity` | `ai_credits_used` |
+| `gross_amount` | `gross_quantity * price_per_unit` |
+
+## Configuration (environment variables)
+
+| variable | default | description |
+|---|---|---|
+| `MODE` | `dev` | `dev` / `prod` dataset separation |
+| `REPORT_DAY` | yesterday (UTC) | target day, `YYYY-MM-DD` |
+| `ENTERPRISE` | `Ministry of Justice (UK)` | billing enterprise name |
+| `PRICE_PER_UNIT` | `0.01` | flat AI-credits price |
+| `INPUT_BUCKET` / `INPUT_PREFIX` | see `src/config.py` | report source location |
+| `OUTPUT_BUCKET` / `OUTPUT_PREFIX` | see `src/config.py` | Parquet output location |
+
+> S3 bucket/prefix defaults in `src/config.py` are placeholders until the real
+> paths are confirmed; override them via the environment variables above.
+
+---
+
+## Template setup notes
+
+This repository was created from the Analytical Platform Airflow Python template.
 
 ## Included Files
 
