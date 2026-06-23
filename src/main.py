@@ -4,6 +4,7 @@ import awswrangler as wr
 
 import config
 from credits import read_report, validate_credits_field, build_credit_rows
+from download import download_report
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -11,6 +12,15 @@ logger = logging.getLogger(__name__)
 
 def main():
     logger.info("Extracting AI credits for %s from %s", config.report_day, config.input_path)
+
+    written = download_report(
+        config.org, config.report_day, config.github_token, config.input_path
+    )
+    if written == 0:
+        logger.info(
+            "No report files available for %s; nothing to do", config.report_day
+        )
+        return
 
     df = read_report(config.input_path)
     validate_credits_field(df)
