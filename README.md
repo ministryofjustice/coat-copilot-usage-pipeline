@@ -40,7 +40,7 @@ billing API loop. Since 2026-06-19 the report carries a per-user
 |---|---|---|
 | `MODE` | `dev` | `dev` / `prod` dataset separation |
 | `ORG` | `ministryofjustice` | GitHub org for the metrics-reports API |
-| `GITHUB_TOKEN` | _(required)_ | token with Copilot metrics read access |
+| `SECRET_ENTERPRISE_BILLING_TOKEN` | _(required)_ | GitHub token with Copilot metrics read access. On Analytical Platform Airflow it is injected from the `enterprise-billing-token` secret; for local runs, export it in your shell. |
 | `REPORT_DAY` | yesterday (UTC) | target day, `YYYY-MM-DD` |
 | `ENTERPRISE` | `Ministry of Justice (UK)` | billing enterprise name |
 | `PRICE_PER_UNIT` | `0.01` | flat AI-credits price |
