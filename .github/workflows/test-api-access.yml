@@ -1,0 +1,46 @@
+name: Test Copilot metrics API access
+
+# Manual smoke-test: confirms the SECRET_ENTERPRISE_BILLING_TOKEN Actions secret
+# can authenticate against the GitHub Copilot users-1-day report endpoint.
+# Prints only the HTTP status and the number of download_links — never the
+# response body (which contains presigned S3 URLs) and never the token.
+
+on:
+  workflow_dispatch:
+    inputs:
+      day:
+        description: "Report day (YYYY-MM-DD, UTC). Blank = yesterday."
+        required: false
+        default: ""
+
+jobs:
+  test-access:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call users-1-day report endpoint
+        env:
+          GH_TOKEN: ${{ secrets.SECRET_ENTERPRISE_BILLING_TOKEN }}
+          ORG: ministryofjustice
+          DAY_INPUT: ${{ inputs.day }}
+        run: |
+          set -euo pipefail
+          DAY="${DAY_INPUT:-$(date -u -d 'yesterday' +%F)}"
+          echo "Testing org=$ORG day=$DAY"
+
+          # Body goes to a file (never echoed); only the status code is captured.
+          http_code=$(curl -sS -o response.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/orgs/${ORG}/copilot/metrics/reports/users-1-day?day=${DAY}")
+
+          echo "HTTP status: $http_code"
+          if [ "$http_code" = "200" ]; then
+            count=$(jq '.download_links | length' response.json)
+            echo "✅ Authenticated. download_links count: $count"
+            [ "$count" -eq 0 ] && echo "ℹ️  Report not yet available for $DAY (empty links)."
+          else
+            # GitHub error bodies carry a .message but not the token — safe to show.
+            echo "❌ Non-200:"; jq -r '.message // "no message"' response.json
+            exit 1
+          fi
