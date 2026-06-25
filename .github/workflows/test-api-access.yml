@@ -38,7 +38,9 @@ jobs:
           if [ "$http_code" = "200" ]; then
             count=$(jq '.download_links | length' response.json)
             echo "✅ Authenticated. download_links count: $count"
-            [ "$count" -eq 0 ] && echo "ℹ️  Report not yet available for $DAY (empty links)."
+            if [ "$count" -eq 0 ]; then
+              echo "ℹ️  Report not yet available for $DAY (empty links)."
+            fi
           else
             # GitHub error bodies carry a .message but not the token — safe to show.
             echo "❌ Non-200:"; jq -r '.message // "no message"' response.json
