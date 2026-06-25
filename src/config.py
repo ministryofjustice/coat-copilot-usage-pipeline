@@ -15,8 +15,10 @@ price_per_unit = float(os.environ.get("PRICE_PER_UNIT", "0.01"))
 
 # GitHub API (report download). org mirrors download-reports.sh ORG default.
 org = os.environ.get("ORG", "ministryofjustice")
-# Required at download time; the downloader raises if missing/empty.
-github_token = os.environ.get("GITHUB_TOKEN", "")
+# Required at download time; the downloader raises if missing/empty. Injected by
+# Analytical Platform Airflow as SECRET_<name> for the `enterprise-billing-token`
+# secret (prefix SECRET_, hyphens -> underscores).
+billing_token = os.environ.get("SECRET_ENTERPRISE_BILLING_TOKEN", "")
 
 # S3 locations. Bucket/prefix values are environment placeholders until the
 # real paths are known; override via env vars without code changes.

@@ -44,7 +44,8 @@ def download_report(org, day, token, input_path):
     files written; 0 means the report is not yet available for the day."""
     if not token:
         raise ValueError(
-            "GITHUB_TOKEN is required to download the usage-metrics report"
+            "SECRET_ENTERPRISE_BILLING_TOKEN is required to download the "
+            "usage-metrics report"
         )
 
     links = fetch_download_links(org, day, token)

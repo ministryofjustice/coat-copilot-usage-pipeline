@@ -14,7 +14,7 @@ def main():
     logger.info("Extracting AI credits for %s from %s", config.report_day, config.input_path)
 
     written = download_report(
-        config.org, config.report_day, config.github_token, config.input_path
+        config.org, config.report_day, config.billing_token, config.input_path
     )
     if written == 0:
         logger.info(
