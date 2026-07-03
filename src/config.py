@@ -3,44 +3,52 @@ from datetime import datetime, timedelta, timezone
 
 mode = os.environ.get("MODE", "dev")
 
-# Target report day: REPORT_DAY env var (YYYY-MM-DD), default = yesterday (UTC).
+# Target report day: REPORT_DAY (YYYY-MM-DD), default = yesterday (UTC).
 report_day = os.environ.get(
     "REPORT_DAY",
     (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d"),
 )
 
-# Billing constants (mirror the bash script).
-enterprise = os.environ.get("ENTERPRISE", "Ministry of Justice (UK)")
-price_per_unit = float(os.environ.get("PRICE_PER_UNIT", "0.01"))
-
-# GitHub API (report download). org mirrors download-reports.sh ORG default.
+# GitHub org for the usage-metrics report endpoint.
 org = os.environ.get("ORG", "ministryofjustice")
-# Required at download time; the downloader raises if missing/empty. Injected by
-# Analytical Platform Airflow as SECRET_<name> for the `enterprise-billing-token`
-# secret (prefix SECRET_, hyphens -> underscores).
+
+# Enterprise slug for the billing endpoint URL (see model-to-final.sh).
+enterprise_slug = os.environ.get("ENTERPRISE_SLUG", "ministry-of-justice-uk")
+
+# One token for both metrics and billing calls. Injected by Analytical Platform
+# Airflow as SECRET_ENTERPRISE_BILLING_TOKEN.
 billing_token = os.environ.get("SECRET_ENTERPRISE_BILLING_TOKEN", "")
 
-# S3 locations. Bucket/prefix values are environment placeholders until the
-# real paths are known; override via env vars without code changes.
-input_bucket = os.environ.get(
-    "INPUT_BUCKET", "s3://mojap-data-production-copilot-usage-reports/"
-)
-input_prefix = os.environ.get("INPUT_PREFIX", "reports/")
+# Prefix above the two dataset dirs inside the selected bucket.
+output_prefix = os.environ.get("OUTPUT_PREFIX", "copilot/")
 
-output_bucket = os.environ.get(
-    "OUTPUT_BUCKET", "s3://mojap-data-production-copilot-usage-credits/"
-)
-output_prefix = os.environ.get("OUTPUT_PREFIX", "ai-credits/")
 
-# dev/prod dataset separation, like the example pipeline.
-env_label = "prod" if mode == "prod" else "dev"
+def normalize_bucket(raw):
+    """Accept 'bucket', 's3://bucket' or trailing-slash forms -> bare name."""
+    return raw.replace("s3://", "").strip("/")
 
-# Full S3 paths for the target day.
-# Input: the day's users-1-day report files (NDJSON, many partition files).
-input_path = f"{input_bucket}{input_prefix}{report_day}/users-1-day/"
 
-# Output: one Parquet object for the day.
-output_path = (
-    f"{output_bucket}{output_prefix}{env_label}/"
-    f"day={report_day}/ai_credits.parquet"
-)
+def select_bucket(mode, dev, prod):
+    """Pick the output bucket by MODE. Raise if the active one is empty."""
+    raw = prod if mode == "prod" else dev
+    if not raw:
+        which = "PROD_S3_BUCKET" if mode == "prod" else "DEV_S3_BUCKET"
+        raise RuntimeError(f"{which} is required for MODE={mode}")
+    return normalize_bucket(raw)
+
+
+def dataset_paths(bucket, prefix):
+    """Return (credits_by_user_path, credits_by_model_path) as s3:// URIs."""
+    p = prefix.strip("/")
+    base = f"s3://{bucket}/{p}/" if p else f"s3://{bucket}/"
+    return base + "credits_by_user/", base + "credits_by_model/"
+
+
+def resolve_paths():
+    """Resolve output dataset paths from env at job start (fail-fast)."""
+    bucket = select_bucket(
+        mode,
+        os.environ.get("DEV_S3_BUCKET", ""),
+        os.environ.get("PROD_S3_BUCKET", ""),
+    )
+    return dataset_paths(bucket, output_prefix)
