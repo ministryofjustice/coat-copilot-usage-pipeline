@@ -22,6 +22,10 @@ billing_token = os.environ.get("SECRET_ENTERPRISE_BILLING_TOKEN", "")
 # Prefix above the two dataset dirs inside the selected bucket.
 output_prefix = os.environ.get("OUTPUT_PREFIX", "copilot/")
 
+# Optional multi-day backfill: "" = single day (report_day), "week" or "month"
+# = that period of today up to yesterday (UTC). See dates.report_days.
+backfill_range = os.environ.get("BACKFILL_RANGE", "").strip().lower()
+
 
 def normalize_bucket(raw):
     """Accept 'bucket', 's3://bucket' or trailing-slash forms -> bare name."""

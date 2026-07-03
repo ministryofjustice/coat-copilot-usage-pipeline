@@ -78,10 +78,34 @@ Both Hive-partitioned by `day` (`day=YYYY-MM-DD/`) under the selected bucket:
 | `SECRET_ENTERPRISE_BILLING_TOKEN` | _(required)_ | GitHub token used for **both** the metrics report and the enterprise billing call. Needs Copilot metrics read **and** `manage_billing:enterprise`. Injected by Analytical Platform Airflow from the `enterprise-billing-token` secret; for local runs, export it. |
 | `ORG` | `ministryofjustice` | GitHub org for the metrics-reports API |
 | `ENTERPRISE_SLUG` | `ministry-of-justice-uk` | enterprise slug in the billing API URL |
-| `REPORT_DAY` | yesterday (UTC) | target day, `YYYY-MM-DD` |
+| `REPORT_DAY` | yesterday (UTC) | target day for a single-day run, `YYYY-MM-DD` (ignored when `BACKFILL_RANGE` is set) |
+| `BACKFILL_RANGE` | _(empty)_ | `` (empty) = single day; `week` or `month` = catch-up range (see below) |
 
 > The output bucket is chosen by `MODE` from the two bucket variables; a missing
 > bucket for the active `MODE` (or a missing token) fails the job at startup.
+
+## Backfill range
+
+`BACKFILL_RANGE` runs the job over several days in one invocation, always ending
+**yesterday (UTC)**:
+
+| value | days processed |
+|---|---|
+| _(empty)_ | a single day — `REPORT_DAY` or yesterday (unchanged default) |
+| `week` | Monday of the current week … yesterday, inclusive |
+| `month` | the 1st of the current month … yesterday, inclusive |
+
+When a range is set, `REPORT_DAY` is ignored. If the computed start is after
+yesterday (today is a Monday for `week`, or the 1st for `month`), the range
+collapses to just yesterday so the job never does nothing. An unrecognised value
+fails the job at startup.
+
+Within a range, each day is written to its own `day=YYYY-MM-DD/` partition
+(`mode="overwrite_partitions"` — idempotent, no double counts). Days whose
+per-user report isn't ready (or has no credits) are skipped and the run
+continues; for the per-model path, a day with no billing `usageItems` is skipped,
+but a failed billing request (e.g. a token lacking `manage_billing:enterprise`)
+fails the job non-zero.
 
 ---
 
