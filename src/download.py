@@ -1,9 +1,7 @@
 import io
 import logging
-import posixpath
-from urllib.parse import unquote, urlparse
 
-import awswrangler as wr
+import pandas as pd
 import requests
 
 logger = logging.getLogger(__name__)
@@ -15,8 +13,7 @@ API_VERSION = "2022-11-28"
 
 def fetch_download_links(org, day, token):
     """Call the Copilot metrics-reports API for the day's users-1-day report and
-    return the list of presigned download URLs. Mirrors the gh api call in
-    download-reports.sh."""
+    return the list of presigned download URLs."""
     url = f"{GITHUB_API}/orgs/{org}/copilot/metrics/reports/{REPORT_TYPE}"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -28,26 +25,20 @@ def fetch_download_links(org, day, token):
     return response.json().get("download_links", [])
 
 
-def _filename_from_url(url, fallback):
-    """Preserve GitHub's original filename (like curl --remote-name): take the
-    last path segment, dropping the presigned query string, and URL-decode it.
-    Falls back to the given name when no usable segment is present."""
-    path = urlparse(url).path
-    name = unquote(posixpath.basename(path))
-    return name or fallback
+def parse_ndjson(bodies):
+    """Concatenate NDJSON text bodies into one DataFrame. Empty in -> empty out."""
+    frames = [
+        pd.read_json(io.StringIO(b), lines=True) for b in bodies if b.strip()
+    ]
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
 
 
-def download_report(org, day, token, input_path):
-    """Fetch the day's users-1-day report links, download each NDJSON file and
-    write it to input_path under its original filename. Existing objects under
-    input_path are deleted first (overwrite semantics). Returns the number of
-    files written; 0 means the report is not yet available for the day."""
-    if not token:
-        raise ValueError(
-            "SECRET_ENTERPRISE_BILLING_TOKEN is required to download the "
-            "usage-metrics report"
-        )
-
+def read_report(org, day, token):
+    """Fetch the day's report links, download each NDJSON body into memory and
+    return one DataFrame. Returns None when there are no links (report not ready).
+    Presigned S3 URLs are fetched WITHOUT the GitHub auth header."""
     links = fetch_download_links(org, day, token)
     if not links:
         logger.warning(
@@ -55,21 +46,12 @@ def download_report(org, day, token, input_path):
             REPORT_TYPE,
             day,
         )
-        return 0
+        return None
 
-    logger.info("Replacing any existing report files under %s", input_path)
-    wr.s3.delete_objects(input_path)
-
-    written = 0
-    for i, url in enumerate(links):
-        name = _filename_from_url(url, fallback=f"part-{i:05d}.json")
-        # Presigned S3 URL from GitHub: fetch WITHOUT the GitHub auth header.
+    bodies = []
+    for url in links:
         content = requests.get(url, timeout=60)
         content.raise_for_status()
-        dest = f"{input_path}{name}"
-        wr.s3.upload(local_file=io.BytesIO(content.content), path=dest)
-        written += 1
-        logger.info("Downloaded %s -> %s", name, dest)
-
-    logger.info("Downloaded %d report file(s) for %s to %s", written, day, input_path)
-    return written
+        bodies.append(content.text)
+    logger.info("Downloaded %d report file(s) for %s into memory", len(bodies), day)
+    return parse_ndjson(bodies)
