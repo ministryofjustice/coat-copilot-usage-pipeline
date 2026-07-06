@@ -26,19 +26,14 @@ output_prefix = os.environ.get("OUTPUT_PREFIX", "copilot/")
 # = that period of today up to yesterday (UTC). See dates.report_days.
 backfill_range = os.environ.get("BACKFILL_RANGE", "").strip().lower()
 
+# Output S3 buckets by MODE (Cloud Platform bucket names, hardcoded).
+DEV_BUCKET = "cloud-platform-c7bd5f7843c58dde69caa00cb7509154"
+PROD_BUCKET = "cloud-platform-41b6a454e7cc120fe1764d3f7fe3f1e2"
 
-def normalize_bucket(raw):
-    """Accept 'bucket', 's3://bucket' or trailing-slash forms -> bare name."""
-    return raw.replace("s3://", "").strip("/")
 
-
-def select_bucket(mode, dev, prod):
-    """Pick the output bucket by MODE. Raise if the active one is empty."""
-    raw = prod if mode == "prod" else dev
-    if not raw:
-        which = "PROD_S3_BUCKET" if mode == "prod" else "DEV_S3_BUCKET"
-        raise RuntimeError(f"{which} is required for MODE={mode}")
-    return normalize_bucket(raw)
+def select_bucket(mode):
+    """Pick the output bucket by MODE (prod -> PROD_BUCKET, else DEV_BUCKET)."""
+    return PROD_BUCKET if mode == "prod" else DEV_BUCKET
 
 
 def dataset_paths(bucket, prefix):
@@ -49,10 +44,5 @@ def dataset_paths(bucket, prefix):
 
 
 def resolve_paths():
-    """Resolve output dataset paths from env at job start (fail-fast)."""
-    bucket = select_bucket(
-        mode,
-        os.environ.get("DEV_S3_BUCKET", ""),
-        os.environ.get("PROD_S3_BUCKET", ""),
-    )
-    return dataset_paths(bucket, output_prefix)
+    """Resolve output dataset paths at job start."""
+    return dataset_paths(select_bucket(mode), output_prefix)

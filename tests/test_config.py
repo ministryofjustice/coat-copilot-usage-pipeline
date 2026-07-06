@@ -1,20 +1,13 @@
-import pytest
 import config
 
 
-def test_normalize_bucket_strips_scheme_and_slashes():
-    assert config.normalize_bucket("s3://my-bucket/") == "my-bucket"
-    assert config.normalize_bucket("my-bucket") == "my-bucket"
-
-
 def test_select_bucket_picks_by_mode():
-    assert config.select_bucket("dev", "dev-b", "prod-b") == "dev-b"
-    assert config.select_bucket("prod", "dev-b", "prod-b") == "prod-b"
+    assert config.select_bucket("dev") == config.DEV_BUCKET
+    assert config.select_bucket("prod") == config.PROD_BUCKET
 
 
-def test_select_bucket_missing_raises():
-    with pytest.raises(RuntimeError):
-        config.select_bucket("prod", "dev-b", "")
+def test_select_bucket_defaults_to_dev():
+    assert config.select_bucket("anything-else") == config.DEV_BUCKET
 
 
 def test_dataset_paths_with_prefix():

@@ -71,9 +71,7 @@ Both Hive-partitioned by `day` (`day=YYYY-MM-DD/`) under the selected bucket:
 
 | variable | default | description |
 |---|---|---|
-| `MODE` | `dev` | selects the output bucket: `prod` → `PROD_S3_BUCKET`, else `DEV_S3_BUCKET` |
-| `DEV_S3_BUCKET` | _(required when `MODE=dev`)_ | output bucket for dev. Accepts `bucket`, `s3://bucket`, or trailing-slash forms. |
-| `PROD_S3_BUCKET` | _(required when `MODE=prod`)_ | output bucket for prod. |
+| `MODE` | `dev` | selects the output bucket: `prod` → prod bucket, else dev bucket (both hardcoded in `config.py`) |
 | `OUTPUT_PREFIX` | `copilot/` | prefix above the two dataset dirs inside the bucket |
 | `SECRET_ENTERPRISE_BILLING_TOKEN` | _(required)_ | GitHub token used for **both** the metrics report and the enterprise billing call. Needs Copilot metrics read **and** `manage_billing:enterprise`. Injected by Analytical Platform Airflow from the `enterprise-billing-token` secret; for local runs, export it. |
 | `ORG` | `ministryofjustice` | GitHub org for the metrics-reports API |
@@ -81,8 +79,8 @@ Both Hive-partitioned by `day` (`day=YYYY-MM-DD/`) under the selected bucket:
 | `REPORT_DAY` | yesterday (UTC) | target day for a single-day run, `YYYY-MM-DD` (ignored when `BACKFILL_RANGE` is set) |
 | `BACKFILL_RANGE` | _(empty)_ | `` (empty) = single day; `week` or `month` = catch-up range (see below) |
 
-> The output bucket is chosen by `MODE` from the two bucket variables; a missing
-> bucket for the active `MODE` (or a missing token) fails the job at startup.
+> The output bucket is chosen by `MODE` from the two hardcoded bucket names in
+> `config.py`; a missing billing token fails the job at startup.
 
 ## Backfill range
 
