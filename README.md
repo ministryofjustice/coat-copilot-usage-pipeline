@@ -72,7 +72,7 @@ Both Hive-partitioned by `day` (`day=YYYY-MM-DD/`) under the selected bucket:
 | variable | default | description |
 |---|---|---|
 | `MODE` | `dev` | selects the output bucket: `prod` → prod bucket, else dev bucket (both hardcoded in `config.py`) |
-| `OUTPUT_PREFIX` | `copilot/` | prefix above the two dataset dirs inside the bucket |
+| `OUTPUT_PREFIX` | `` | prefix above the two dataset dirs inside the bucket |
 | `SECRET_ENTERPRISE_BILLING_TOKEN` | _(required)_ | GitHub token used for **both** the metrics report and the enterprise billing call. Needs Copilot metrics read **and** `manage_billing:enterprise`. Injected by Analytical Platform Airflow from the `enterprise-billing-token` secret; for local runs, export it. |
 | `ORG` | `ministryofjustice` | GitHub org for the metrics-reports API |
 | `ENTERPRISE_SLUG` | `ministry-of-justice-uk` | enterprise slug in the billing API URL |
