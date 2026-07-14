@@ -26,9 +26,9 @@ output_prefix = os.environ.get("OUTPUT_PREFIX", "reports-live-consolidated")
 # = that period of today up to yesterday (UTC). See dates.report_days.
 backfill_range = os.environ.get("BACKFILL_RANGE", "").strip().lower()
 
-# Output S3 buckets by MODE (Cloud Platform bucket names, hardcoded).
-DEV_BUCKET = "cloud-platform-c7bd5f7843c58dde69caa00cb7509154"
-PROD_BUCKET = "cloud-platform-41b6a454e7cc120fe1764d3f7fe3f1e2"
+# Output S3 buckets by MODE, injected as env vars by the Airflow manifest.
+DEV_BUCKET = os.environ.get("DEV_BUCKET", "")
+PROD_BUCKET = os.environ.get("PROD_BUCKET", "")
 
 
 def select_bucket(mode):
@@ -44,5 +44,14 @@ def dataset_paths(bucket, prefix):
 
 
 def resolve_paths():
-    """Resolve output dataset paths at job start."""
-    return dataset_paths(select_bucket(mode), output_prefix)
+    """Resolve output dataset paths at job start.
+
+    Raises ValueError if no bucket is configured for the active MODE.
+    """
+    bucket = select_bucket(mode)
+    if not bucket:
+        raise ValueError(
+            f"No output bucket configured for MODE={mode!r}; "
+            "set DEV_BUCKET / PROD_BUCKET"
+        )
+    return dataset_paths(bucket, output_prefix)

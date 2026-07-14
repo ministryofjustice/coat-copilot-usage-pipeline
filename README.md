@@ -19,6 +19,7 @@ report landing in S3 — queryable in Athena:
 The two paths are independent and run in order (per-user first):
 
 **Per-user (`credits_by_user`)**
+
 1. Fetches the day's `users-1-day` report download links from the GitHub API
    (`GET /orgs/{org}/copilot/metrics/reports/users-1-day`). Skips cleanly if the
    report is not yet available.
@@ -29,6 +30,7 @@ The two paths are independent and run in order (per-user first):
    dataset for the day.
 
 **Per-model (`credits_by_model`)**
+
 5. Fetches the enterprise `ai_credit/usage` billing report
    (`GET /enterprises/{slug}/settings/billing/ai_credit/usage`) into memory.
    Skips the dataset if there are no `usageItems`.
@@ -71,7 +73,9 @@ Both Hive-partitioned by `day` (`day=YYYY-MM-DD/`) under the selected bucket:
 
 | variable | default | description |
 |---|---|---|
-| `MODE` | `dev` | selects the output bucket: `prod` → prod bucket, else dev bucket (both hardcoded in `config.py`) |
+| `MODE` | `dev` | selects the output bucket: `prod` → `PROD_BUCKET`, else `DEV_BUCKET` |
+| `DEV_BUCKET` | _(required for dev)_ | output S3 bucket used when `MODE` is not `prod`. No default — an unset value fails the job at startup. In Airflow, supplied via the manifest's per-task `env_vars`. |
+| `PROD_BUCKET` | _(required for prod)_ | output S3 bucket used when `MODE=prod`. No default — an unset value fails the job at startup. In Airflow, supplied via the manifest's per-task `env_vars`. |
 | `OUTPUT_PREFIX` | `` | prefix above the two dataset dirs inside the bucket |
 | `SECRET_ENTERPRISE_BILLING_TOKEN` | _(required)_ | GitHub token used for **both** the metrics report and the enterprise billing call. Needs Copilot metrics read **and** `manage_billing:enterprise`. Injected by Analytical Platform Airflow from the `enterprise-billing-token` secret; for local runs, export it. |
 | `ORG` | `ministryofjustice` | GitHub org for the metrics-reports API |
@@ -79,8 +83,9 @@ Both Hive-partitioned by `day` (`day=YYYY-MM-DD/`) under the selected bucket:
 | `REPORT_DAY` | yesterday (UTC) | target day for a single-day run, `YYYY-MM-DD` (ignored when `BACKFILL_RANGE` is set) |
 | `BACKFILL_RANGE` | _(empty)_ | `` (empty) = single day; `week` or `month` = catch-up range (see below) |
 
-> The output bucket is chosen by `MODE` from the two hardcoded bucket names in
-> `config.py`; a missing billing token fails the job at startup.
+> The output bucket is chosen by `MODE` and read from `DEV_BUCKET` / `PROD_BUCKET`
+> (no bucket names are hardcoded). A missing bucket for the active `MODE`, or a
+> missing billing token, fails the job at startup.
 
 ## Backfill range
 
