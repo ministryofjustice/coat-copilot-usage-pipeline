@@ -109,3 +109,21 @@ per-user report isn't ready (or has no credits) are skipped and the run
 continues; for the per-model path, a day with no billing `usageItems` is skipped,
 but a failed billing request (e.g. a token lacking `manage_billing:enterprise`)
 fails the job non-zero.
+
+## Contributing
+
+For running the pipeline locally, testing it, the failure policy, releasing it,
+and how to extend it (a different sink, taxonomy, or upstream API), see
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+This pipeline is maintained for the Ministry of Justice's own use and steered by
+our internal roadmap, so we can only merge pull requests that coincide with where
+we're already going — please open an issue first for anything beyond a small fix.
+You are free to fork it under the [MIT licence](LICENSE) and point it at your own
+org, enterprise, and buckets — all of which are environment variables, not code
+changes; see
+[Contributions, forks, and governance](CONTRIBUTING.md#contributions-forks-and-governance).
+
+## Licence
+
+Licensed under the [MIT License](LICENSE). © Crown Copyright (Ministry of Justice).
