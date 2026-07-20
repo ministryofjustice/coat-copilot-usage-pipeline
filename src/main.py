@@ -30,7 +30,9 @@ def collect_user_rows(days):
     """Build per-user credit rows across days, skipping not-ready/empty days."""
     frames = []
     for day in days:
-        df = read_report(config.org, day, config.billing_token)
+        df = read_report(
+            config.enterprise_slug, day, config.billing_token, config.org
+        )
         if df is None or df.empty:
             logger.info("No report data for %s; skipping per-user day", day)
             continue

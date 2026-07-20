@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 import config
@@ -42,3 +44,13 @@ def test_resolve_paths_raises_when_selected_bucket_unset(monkeypatch):
     monkeypatch.setattr(config, "PROD_BUCKET", "")
     with pytest.raises(ValueError, match="No output bucket configured"):
         config.resolve_paths()
+
+
+@pytest.mark.skipif(
+    os.environ.get("ORG"), reason="ORG is set in this environment"
+)
+def test_org_defaults_to_empty():
+    # Guards the default itself: a non-empty ORG default would silently route
+    # every run back to the org-scoped endpoint, dropping sibling orgs while
+    # every other test still passes.
+    assert config.org == ""
