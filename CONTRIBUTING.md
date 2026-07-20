@@ -17,7 +17,7 @@ testing it, extending it, and releasing it.
 │   ├── billing.py       # Enterprise ai_credit/usage billing API -> usageItems
 │   └── models.py        # usageItems -> per-model rows (family + routed tags)
 ├── tests/               # pytest suite, one module per src module
-├── .github/workflows/   # Shared AP workflows + a manual API smoke test
+├── .github/workflows/   # Shared AP workflows
 ├── Dockerfile           # Built on the AP Airflow Python base image
 ├── pytest.ini           # pythonpath=src, testpaths=tests
 ├── requirements.txt     # Runtime deps (awswrangler, pandas, requests)
@@ -135,9 +135,7 @@ buckets), and the injection of the `enterprise-billing-token` secret are defined
 That manifest lives in the Airflow repo, not here.
 
 PRs are gated by the shared test-container, scan-container, and dependency-review
-workflows. `test-api-access.yml` is a manual (`workflow_dispatch`) smoke test that
-confirms the token can reach the metrics endpoint; it prints only the HTTP status
-and a link count — never the response body (presigned URLs) and never the token.
+workflows.
 
 ## Contributions, forks, and governance
 
@@ -168,6 +166,12 @@ Your org, your enterprise slug, your buckets, and your prefix are all config:
 ORG=your-org ENTERPRISE_SLUG=your-enterprise \
 DEV_BUCKET=your-bucket OUTPUT_PREFIX=your/prefix python src/main.py
 ```
+
+Setting `ORG` narrows the metrics report to that single org. Leave it unset to
+fetch enterprise-wide (every org in `ENTERPRISE_SLUG`), which is what the MoJ
+deployment does — it needs a token with enterprise-level metrics read. If your
+token only carries org-level access, set `ORG` and the pipeline uses the
+org-scoped endpoint instead.
 
 If you need a code change, the seams — in rough order of how likely you are to
 need them — are:

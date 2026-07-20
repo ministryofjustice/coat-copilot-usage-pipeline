@@ -5,7 +5,7 @@ import main
 
 def _patch_common(monkeypatch, calls):
     monkeypatch.setattr(main.config, "billing_token", "t")
-    monkeypatch.setattr(main.config, "org", "org")
+    monkeypatch.setattr(main.config, "org", "")
     monkeypatch.setattr(main.config, "enterprise_slug", "slug")
     monkeypatch.setattr(main.config, "report_day", "2026-06-25")
     monkeypatch.setattr(main.config, "backfill_range", "")
@@ -69,7 +69,7 @@ def test_main_range_writes_once_per_path(monkeypatch):
 
     reads = []
 
-    def fake_read(org, day, token):
+    def fake_read(enterprise_slug, day, token, org=""):
         reads.append(day)
         return pd.DataFrame({"user_login": [day], "ai_credits_used": [1.0]})
 
@@ -85,10 +85,11 @@ def test_main_range_writes_once_per_path(monkeypatch):
 
 
 def test_collect_user_rows_skips_missing_days(monkeypatch):
-    monkeypatch.setattr(main.config, "org", "org")
+    monkeypatch.setattr(main.config, "enterprise_slug", "slug")
+    monkeypatch.setattr(main.config, "org", "")
     monkeypatch.setattr(main.config, "billing_token", "t")
 
-    def fake_read(org, day, token):
+    def fake_read(enterprise_slug, day, token, org=""):
         if day == "b":
             return None  # report not ready for this day
         return pd.DataFrame({"user_login": [day], "ai_credits_used": [1.0]})

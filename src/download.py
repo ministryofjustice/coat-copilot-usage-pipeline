@@ -11,10 +11,26 @@ REPORT_TYPE = "users-1-day"
 API_VERSION = "2022-11-28"
 
 
-def fetch_download_links(org, day, token):
+def report_url(enterprise_slug, org=""):
+    """Build the users-1-day report URL.
+
+    Enterprise-scoped by default, so the report covers every org in the
+    enterprise (MoJ plus siblings). When `org` is set, falls back to the
+    org-scoped endpoint — an escape hatch for deployments holding only
+    org-level metrics access.
+    """
+    if org:
+        return f"{GITHUB_API}/orgs/{org}/copilot/metrics/reports/{REPORT_TYPE}"
+    return (
+        f"{GITHUB_API}/enterprises/{enterprise_slug}"
+        f"/copilot/metrics/reports/{REPORT_TYPE}"
+    )
+
+
+def fetch_download_links(enterprise_slug, day, token, org=""):
     """Call the Copilot metrics-reports API for the day's users-1-day report and
     return the list of presigned download URLs."""
-    url = f"{GITHUB_API}/orgs/{org}/copilot/metrics/reports/{REPORT_TYPE}"
+    url = report_url(enterprise_slug, org)
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
@@ -35,11 +51,11 @@ def parse_ndjson(bodies):
     return pd.concat(frames, ignore_index=True)
 
 
-def read_report(org, day, token):
+def read_report(enterprise_slug, day, token, org=""):
     """Fetch the day's report links, download each NDJSON body into memory and
     return one DataFrame. Returns None when there are no links (report not ready).
     Presigned S3 URLs are fetched WITHOUT the GitHub auth header."""
-    links = fetch_download_links(org, day, token)
+    links = fetch_download_links(enterprise_slug, day, token, org)
     if not links:
         logger.warning(
             "No download links for %s report on %s; report not yet available",

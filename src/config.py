@@ -9,14 +9,17 @@ report_day = os.environ.get(
     (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d"),
 )
 
-# GitHub org for the usage-metrics report endpoint.
-org = os.environ.get("ORG", "ministryofjustice")
+# Optional org-scoped override for the metrics report. Empty (the default) uses
+# the enterprise-scoped endpoint, which covers every org in the enterprise.
+# Deployments holding only org-level access can set ORG to scope it to one org.
+org = os.environ.get("ORG", "")
 
-# Enterprise slug for the billing endpoint URL (see model-to-final.sh).
+# Enterprise slug for both the metrics-reports and the billing endpoint URLs.
 enterprise_slug = os.environ.get("ENTERPRISE_SLUG", "ministry-of-justice-uk")
 
-# One token for both metrics and billing calls. Injected by Analytical Platform
-# Airflow as SECRET_ENTERPRISE_BILLING_TOKEN.
+# One token for both metrics and billing calls, enterprise-scoped for both by
+# default. Injected by Analytical Platform Airflow as
+# SECRET_ENTERPRISE_BILLING_TOKEN.
 billing_token = os.environ.get("SECRET_ENTERPRISE_BILLING_TOKEN", "")
 
 # Prefix above the two dataset dirs inside the selected bucket.
