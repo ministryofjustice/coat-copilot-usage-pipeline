@@ -21,7 +21,10 @@ The two paths are independent and run in order (per-user first):
 **Per-user (`credits_by_user`)**
 
 1. Fetches the day's `users-1-day` report download links from the GitHub API
-   (`GET /orgs/{org}/copilot/metrics/reports/users-1-day`). Skips cleanly if the
+   (`GET /enterprises/{slug}/copilot/metrics/reports/users-1-day`). Enterprise-
+   scoped by default, so the report covers every org in the enterprise — MoJ
+   plus siblings. Set `ORG` to narrow it to a single org instead.
+   Skips cleanly if the
    report is not yet available.
 2. Downloads each NDJSON part **into memory** (never persisted to S3).
 3. Validates the `ai_credits_used` field is present (reports predate 2026-06-19
@@ -77,9 +80,9 @@ Both Hive-partitioned by `day` (`day=YYYY-MM-DD/`) under the selected bucket:
 | `DEV_BUCKET` | _(required for dev)_ | output S3 bucket used when `MODE` is not `prod`. No default — an unset value fails the job at startup. In Airflow, supplied via the manifest's per-task `env_vars`. |
 | `PROD_BUCKET` | _(required for prod)_ | output S3 bucket used when `MODE=prod`. No default — an unset value fails the job at startup. In Airflow, supplied via the manifest's per-task `env_vars`. |
 | `OUTPUT_PREFIX` | `reports-live-consolidated` | prefix above the two dataset dirs inside the bucket |
-| `SECRET_ENTERPRISE_BILLING_TOKEN` | _(required)_ | GitHub token used for **both** the metrics report and the enterprise billing call. Needs Copilot metrics read **and** `manage_billing:enterprise`. Injected by Analytical Platform Airflow from the `enterprise-billing-token` secret; for local runs, export it. |
-| `ORG` | `ministryofjustice` | GitHub org for the metrics-reports API |
-| `ENTERPRISE_SLUG` | `ministry-of-justice-uk` | enterprise slug in the billing API URL |
+| `SECRET_ENTERPRISE_BILLING_TOKEN` | _(required)_ | GitHub token used for **both** the metrics report and the enterprise billing call. Needs **enterprise-level** Copilot metrics read (or org-level, if `ORG` is set) **and** `manage_billing:enterprise`. Injected by Analytical Platform Airflow from the `enterprise-billing-token` secret; for local runs, export it. |
+| `ORG` | _(empty)_ | optional override: when set, the metrics report is fetched org-scoped (`/orgs/{org}/...`) instead of enterprise-scoped. Leave empty for enterprise-wide coverage. Intended for deployments that only hold org-level metrics access. |
+| `ENTERPRISE_SLUG` | `ministry-of-justice-uk` | enterprise slug in **both** the metrics-reports and the billing API URLs |
 | `REPORT_DAY` | yesterday (UTC) | target day for a single-day run, `YYYY-MM-DD` (ignored when `BACKFILL_RANGE` is set) |
 | `BACKFILL_RANGE` | _(empty)_ | `` (empty) = single day; `week` or `month` = catch-up range (see below) |
 
