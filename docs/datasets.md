@@ -80,7 +80,8 @@ It is repeated here so a person who spent credits but produced no telemetry can
 still be counted as active without a join. Both datasets are written from the
 same report download in the same pass. Two differences from `credits_by_user`:
 rows with 0 credits are kept here and dropped there, and a missing amount is
-written as 0 here, so `ai_credits_used > 0` is the test for "had a charge".
+written as 0 here, so `WHERE ai_credits_used > 0` finds the person-days that had
+a charge without a null check.
 
 Do not sum `ai_credits_used` from this dataset and from `credits_by_user` in one
 query. It is the same money in both.
