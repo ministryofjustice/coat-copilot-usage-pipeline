@@ -61,7 +61,7 @@ including people with no activity.
 | `used_copilot_coding_agent` | boolean, nullable | |
 | `used_copilot_code_review_active` | boolean, nullable | person requested a review |
 | `used_copilot_code_review_passive` | boolean, nullable | review ran automatically |
-| `had_credit_charge` | boolean | derived: billing recorded spend for this person-day |
+| `ai_credits_used` | double | credits consumed that day; 0 when there was no charge |
 | `has_activity_telemetry` | boolean | derived: the full field set arrived |
 | `cli_session_count` | bigint, nullable | Copilot CLI, from `totals_by_cli` |
 | `cli_request_count` | bigint, nullable | includes automated agentic follow-up calls |
@@ -75,9 +75,15 @@ including people with no activity.
 | `app_prompt_tokens_sum` | bigint, nullable | |
 | `app_output_tokens_sum` | bigint, nullable | |
 
-The credit amount is not repeated here. Join `credits_by_user` on
-`(day, user_login)` for it. `had_credit_charge` exists so a person who spent
-credits but produced no telemetry can still be counted as active.
+`ai_credits_used` is the same per-person-day amount `credits_by_user` holds.
+It is repeated here so a person who spent credits but produced no telemetry can
+still be counted as active without a join. Both datasets are written from the
+same report download in the same pass. Two differences from `credits_by_user`:
+rows with 0 credits are kept here and dropped there, and a missing amount is
+written as 0 here, so `ai_credits_used > 0` is the test for "had a charge".
+
+Do not sum `ai_credits_used` from this dataset and from `credits_by_user` in one
+query. It is the same money in both.
 
 ## telemetry_by_user_activity
 
@@ -151,6 +157,6 @@ per person per day. The billing API splits credits by model only.
 The Glue crawler infers Athena types from the Parquet footer, so the pandas
 dtypes at write time decide the column types. `src/telemetry.py` sets an explicit
 nullable dtype on every column: `boolean` for the flags, `Int64` for the counts,
-`string` for the text. Without that, a column that is all-null for one day writes
+`Float64` for the credit amount, `string` for the text. Without that, a column that is all-null for one day writes
 as Parquet type `null` and that partition disagrees with the others.
 `tests/test_telemetry.py` asserts the dtypes and that no column writes as `null`.

@@ -9,13 +9,15 @@ neither costs an extra API call.
 
 Pure transform, like `credits.py`: no I/O, no logging, no S3.
 
-Two things this module deliberately does not do. It does not carry
-`ai_credits_used` -- `credits_by_user` is the one place the amount lives, and a
-`had_credit_charge` boolean is kept in its place so a person who spent credits
-but produced no telemetry can still be counted as active. It does not compute
-any rate: `loc_suggested_to_add_sum` excludes agent edits while `loc_added_sum`
-includes them, so a lines-kept rate over all features exceeds 100%. Rates belong
-in the query layer, per feature.
+`telemetry_by_user` carries `ai_credits_used`, the same per-person-day amount
+`credits_by_user` holds, so a person who spent credits but produced no telemetry
+can still be counted as active without a join. Both come from the same
+DataFrame in the same pass. Absent is written as 0, so "0 means no charge" holds
+without a null check.
+
+This module computes no rate. `loc_suggested_to_add_sum` excludes agent edits
+while `loc_added_sum` includes them, so a lines-kept rate over all features
+exceeds 100%. Rates belong in the query layer, per feature.
 
 Every column is given an explicit nullable dtype. That is what keeps each
 day-partition declaring the same Parquet schema even on days when a whole block
@@ -53,7 +55,7 @@ USER_COLUMNS = (
     ["user_id", "user_login", "enterprise_id"]
     + COUNTS
     + FLAGS
-    + ["had_credit_charge", "has_activity_telemetry"]
+    + ["ai_credits_used", "has_activity_telemetry"]
     + [
         "cli_session_count",
         "cli_request_count",
@@ -122,7 +124,8 @@ def build_user_rows(df, report_day):
         # at all, so the column cannot be indexed unconditionally.
         column = df[flag] if flag in df.columns else pd.Series(pd.NA, index=df.index)
         out[flag] = column.astype("boolean")
-    out["had_credit_charge"] = (df["ai_credits_used"].fillna(0) > 0).astype("boolean")
+    # Absent means no charge, the same reading credits.py takes.
+    out["ai_credits_used"] = df["ai_credits_used"].astype("Float64").fillna(0)
     out["has_activity_telemetry"] = (
         df["used_cli"].notna()
         if "used_cli" in df.columns

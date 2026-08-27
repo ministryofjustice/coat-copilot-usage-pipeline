@@ -44,8 +44,8 @@ comes from the billing API and is written last.
 
 5. Builds both telemetry datasets from the same in-memory DataFrame, with no
    second download. `telemetry_by_user` keeps every person-day record, including
-   people with no activity. The credit amount is not repeated there; a
-   `had_credit_charge` boolean stands in its place.
+   people with no activity, and carries `ai_credits_used` so a person with
+   credits but no telemetry is still visible there.
 
 **Per-model credits (`credits_by_model`)**
 

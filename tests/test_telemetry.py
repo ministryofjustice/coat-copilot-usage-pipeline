@@ -133,7 +133,7 @@ def test_cli_and_app_blocks_are_folded_into_columns():
     assert rows["app_output_tokens_sum"].tolist() == [5]
 
 
-def test_had_credit_charge_is_a_boolean_not_the_amount():
+def test_carries_the_credit_amount():
     rows = telemetry.build_user_rows(
         _frame(
             _full_record(ai_credits_used=12.5),
@@ -141,8 +141,17 @@ def test_had_credit_charge_is_a_boolean_not_the_amount():
         ),
         "2026-08-20",
     )
-    assert rows["had_credit_charge"].tolist() == [True, False]
-    assert "ai_credits_used" not in rows.columns
+    assert rows["ai_credits_used"].tolist() == [12.5, 0.0]
+    assert rows["ai_credits_used"].dtype.name == "Float64"
+
+
+def test_missing_credit_amount_becomes_zero():
+    # A person-day with no charge must read as 0, not null, so "0 means no
+    # charge" holds without a null check.
+    rows = telemetry.build_user_rows(
+        _frame(_full_record(ai_credits_used=None)), "2026-08-20"
+    )
+    assert rows["ai_credits_used"].tolist() == [0.0]
 
 
 def test_user_column_order_matches_the_declared_schema():
