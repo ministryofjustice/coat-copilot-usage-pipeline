@@ -5,7 +5,7 @@
 This repository contains a Python pipeline that runs as a container on the
 Analytical Platform's [Airflow infrastructure](https://github.com/ministryofjustice/analytical-platform-airflow).
 It reproduces, as an Airflow job, the daily GitHub Copilot AI-credit extraction
-done by the `getusagedata/daily.sh` reference script. It writes **two**
+done by the `getusagedata/daily.sh` reference script. It writes **four**
 day-partitioned Parquet datasets straight to S3 — no intermediate CSV and no raw
 report landing in S3 — queryable in Athena:
 
@@ -13,12 +13,20 @@ report landing in S3 — queryable in Athena:
   *usage-metrics* report (carries per-user `ai_credits_used` since 2026-06-19).
 - **`credits_by_model`** — per-model AI credits from the enterprise *billing*
   `ai_credit/usage` API, tagged with a model family and a `routed` flag.
+- **`telemetry_by_user`** — one row per person per day: activity counts,
+  capability flags, CLI and Copilot-app session and token counts.
+- **`telemetry_by_user_activity`** — one row per person, day, language and
+  feature.
+
+Column-by-column schemas and query notes are in
+[`docs/datasets.md`](docs/datasets.md).
 
 ## What it does
 
-The two paths are independent and run in order (per-user first):
+Three datasets come from the metrics report and are written first. The fourth
+comes from the billing API and is written last.
 
-**Per-user (`credits_by_user`)**
+**Per-user credits (`credits_by_user`)**
 
 1. Fetches the day's `users-1-day` report download links from the GitHub API
    (`GET /enterprises/{slug}/copilot/metrics/reports/users-1-day`). Enterprise-
@@ -32,27 +40,35 @@ The two paths are independent and run in order (per-user first):
 4. Filters users with `ai_credits_used > 0` and writes the `credits_by_user`
    dataset for the day.
 
-**Per-model (`credits_by_model`)**
+**Telemetry (`telemetry_by_user`, `telemetry_by_user_activity`)**
 
-5. Fetches the enterprise `ai_credit/usage` billing report
+5. Builds both telemetry datasets from the same in-memory DataFrame, with no
+   second download. `telemetry_by_user` keeps every person-day record, including
+   people with no activity. The credit amount is not repeated there; a
+   `had_credit_charge` boolean stands in its place.
+
+**Per-model credits (`credits_by_model`)**
+
+6. Fetches the enterprise `ai_credit/usage` billing report
    (`GET /enterprises/{slug}/settings/billing/ai_credit/usage`) into memory.
    Skips the dataset if there are no `usageItems`.
-6. Groups by model, sums `grossQuantity`, tags `model_family`
+7. Groups by model, sums `grossQuantity`, tags `model_family`
    (`Opus | Sonnet | Haiku | GPT | Gemini | CodeReview | Other`) and
    `routed` (`model` starts with `Auto:`), and writes the `credits_by_model`
    dataset for the day.
 
-Both datasets are written with `mode="overwrite_partitions"`, so re-running a day
+Every dataset is written with `mode="overwrite_partitions"`, so re-running a day
 replaces just that day's partition (idempotent — no double counts).
 
-**Failure policy (fail-loud):** per-user is written first; if the per-model path
-then fails (e.g. the token lacks `manage_billing:enterprise` scope), the job
-exits non-zero so Airflow flags the run — but the per-user Parquet is already
-written and kept.
+**Failure policy (fail-loud):** the three metrics-report datasets are written
+first; if the per-model path then fails (e.g. the token lacks
+`manage_billing:enterprise` scope), the job exits non-zero so Airflow flags the
+run — but those three Parquet writes are already done and kept.
 
 ## Output datasets
 
-Both Hive-partitioned by `day` (`day=YYYY-MM-DD/`) under the selected bucket:
+All Hive-partitioned by `day` (`day=YYYY-MM-DD/`) under the selected bucket.
+Full schemas in [`docs/datasets.md`](docs/datasets.md):
 
 `{prefix}credits_by_user/day=YYYY-MM-DD/`
 
@@ -72,6 +88,12 @@ Both Hive-partitioned by `day` (`day=YYYY-MM-DD/`) under the selected bucket:
 | `routed` | `true` when `model` starts with `Auto:` |
 | `ai_credits_used` | summed `grossQuantity` for that model |
 
+`{prefix}telemetry_by_user/day=YYYY-MM-DD/` — 31 columns, one row per person per
+day.
+
+`{prefix}telemetry_by_user_activity/day=YYYY-MM-DD/` — 10 columns, one row per
+person, day, language and feature.
+
 ## Configuration (environment variables)
 
 | variable | default | description |
@@ -79,7 +101,7 @@ Both Hive-partitioned by `day` (`day=YYYY-MM-DD/`) under the selected bucket:
 | `MODE` | `dev` | selects the output bucket: `prod` → `PROD_BUCKET`, else `DEV_BUCKET` |
 | `DEV_BUCKET` | _(required for dev)_ | output S3 bucket used when `MODE` is not `prod`. No default — an unset value fails the job at startup. In Airflow, supplied via the manifest's per-task `env_vars`. |
 | `PROD_BUCKET` | _(required for prod)_ | output S3 bucket used when `MODE=prod`. No default — an unset value fails the job at startup. In Airflow, supplied via the manifest's per-task `env_vars`. |
-| `OUTPUT_PREFIX` | `reports-live-consolidated` | prefix above the two dataset dirs inside the bucket |
+| `OUTPUT_PREFIX` | `reports-live-consolidated` | prefix above the dataset dirs inside the bucket |
 | `SECRET_ENTERPRISE_BILLING_TOKEN` | _(required)_ | GitHub token used for **both** the metrics report and the enterprise billing call. Needs **enterprise-level** Copilot metrics read (or org-level, if `ORG` is set) **and** `manage_billing:enterprise`. Injected by Analytical Platform Airflow from the `enterprise-billing-token` secret; for local runs, export it. |
 | `ORG` | _(empty)_ | optional override: when set, the metrics report is fetched org-scoped (`/orgs/{org}/...`) instead of enterprise-scoped. Leave empty for enterprise-wide coverage. Intended for deployments that only hold org-level metrics access. |
 | `ENTERPRISE_SLUG` | `ministry-of-justice-uk` | enterprise slug in **both** the metrics-reports and the billing API URLs |
