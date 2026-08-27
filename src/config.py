@@ -22,7 +22,7 @@ enterprise_slug = os.environ.get("ENTERPRISE_SLUG", "ministry-of-justice-uk")
 # SECRET_ENTERPRISE_BILLING_TOKEN.
 billing_token = os.environ.get("SECRET_ENTERPRISE_BILLING_TOKEN", "")
 
-# Prefix above the two dataset dirs inside the selected bucket.
+# Prefix above the dataset dirs inside the selected bucket.
 output_prefix = os.environ.get("OUTPUT_PREFIX", "reports-live-consolidated")
 
 # Optional multi-day backfill: "" = single day (report_day), "week" or "month"
@@ -39,15 +39,24 @@ def select_bucket(mode):
     return PROD_BUCKET if mode == "prod" else DEV_BUCKET
 
 
+# Every dataset this job writes, one directory each under output_prefix.
+DATASETS = (
+    "credits_by_user",
+    "credits_by_model",
+    "telemetry_by_user",
+    "telemetry_by_user_activity",
+)
+
+
 def dataset_paths(bucket, prefix):
-    """Return (credits_by_user_path, credits_by_model_path) as s3:// URIs."""
+    """Return {dataset name: s3:// URI} for every dataset this job writes."""
     p = prefix.strip("/")
     base = f"s3://{bucket}/{p}/" if p else f"s3://{bucket}/"
-    return base + "credits_by_user/", base + "credits_by_model/"
+    return {name: f"{base}{name}/" for name in DATASETS}
 
 
 def resolve_paths():
-    """Resolve output dataset paths at job start.
+    """Resolve the {dataset name: s3:// URI} mapping at job start.
 
     Raises ValueError if no bucket is configured for the active MODE.
     """
