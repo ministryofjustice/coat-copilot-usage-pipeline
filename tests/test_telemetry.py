@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
@@ -28,8 +27,8 @@ def _full_record(**overrides):
         "used_copilot_code_review_active": True,
         "used_copilot_code_review_passive": False,
         "ai_credits_used": 12.5,
-        "totals_by_cli": np.nan,
-        "totals_by_copilot_app": np.nan,
+        "totals_by_cli": float("nan"),
+        "totals_by_copilot_app": float("nan"),
         "totals_by_language_feature": [
             {
                 "language": "python",
