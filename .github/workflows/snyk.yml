@@ -42,7 +42,7 @@ jobs:
 
       - name: Upload SARIF
         if: always() && steps.sarif.outputs.exists == 'true'
-        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           sarif_file: snyk-python.sarif
           category: snyk-python
@@ -82,7 +82,7 @@ jobs:
 
       - name: Upload SARIF
         if: always() && steps.sarif.outputs.exists == 'true'
-        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           sarif_file: snyk.sarif
           category: snyk-container
@@ -119,7 +119,7 @@ jobs:
 
       - name: Upload SARIF
         if: always() && steps.sarif.outputs.exists == 'true'
-        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           sarif_file: snyk-code.sarif
           category: snyk-code
