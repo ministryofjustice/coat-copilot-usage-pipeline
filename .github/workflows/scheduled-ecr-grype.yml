@@ -1,0 +1,161 @@
+---
+name: Scheduled ECR Grype
+
+on:
+  schedule:
+    - cron: "0 1 * * 1" # Weekly Monday 01:00 UTC
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional image tag to scan (defaults to latest release)
+        required: false
+        type: string
+
+permissions: {}
+
+jobs:
+  scheduled-ecr-grype:
+    name: Grype (latest ECR release)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Resolve Image Tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          if [[ -n "${INPUT_IMAGE_TAG}" ]]; then
+            imageTag="${INPUT_IMAGE_TAG}"
+          else
+            imageTag=$(gh release list --repo "${{ github.repository }}" --exclude-drafts --exclude-pre-releases --json "isLatest,tagName" | jq -r '.[] | select(.isLatest == true) | .tagName')
+          fi
+
+          if [[ -z "${imageTag}" || "${imageTag}" == "null" ]]; then
+            echo "Could not resolve latest release tag"
+            exit 1
+          fi
+
+          ecrRepository=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]' | sed 's/_/-/g')
+          image="509399598587.dkr.ecr.eu-west-2.amazonaws.com/${ecrRepository}:${imageTag}"
+
+          {
+            echo "image-tag=${imageTag}"
+            echo "ecr-repository=${ecrRepository}"
+            echo "image=${image}"
+          } >> "${GITHUB_ENV}"
+
+          echo "Resolved image: ${image}"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: eu-west-2
+          role-to-assume: arn:aws:iam::509399598587:role/ecr-access
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      - name: Check Image Exists
+        shell: bash
+        run: |
+          aws ecr describe-images \
+            --repository-name "${{ env.ecr-repository }}" \
+            --image-ids "imageTag=${{ env.image-tag }}"
+
+      - name: Pull Image
+        shell: bash
+        run: docker pull "${{ env.image }}"
+
+      - name: Generate .grype.yml
+        shell: bash
+        run: |
+          imageName=$(grep "^FROM" Dockerfile | cut -d' ' -f2 | cut -d':' -f1 | cut -d'@' -f1)
+          imageRepo=${imageName#ghcr.io/}
+
+          httpStatus=$(curl --silent --show-error --location \
+            --output runtime-grype.yml \
+            --write-out "%{http_code}" \
+            "https://raw.githubusercontent.com/${imageRepo}/refs/heads/main/.grype.yml")
+
+          if [[ "${httpStatus}" == "200" ]]; then
+            if [[ ! -f .grype.yml ]]; then
+              mv runtime-grype.yml .grype.yml
+            else
+              cat runtime-grype.yml >> .grype.yml
+            fi
+          elif [[ ! -f .grype.yml ]]; then
+            echo ".grype.yml not found in repository or upstream runtime image"
+            exit 1
+          fi
+
+      - name: Scan
+        id: scan
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: ${{ env.image }}
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: false
+          output-format: sarif
+          output-file: result.sarif
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          sarif_file: result.sarif
+
+      - name: Process Scan Result
+        id: process_scan_result
+        shell: bash
+        run: |
+          SARIF=$(cat result.sarif)
+
+          RULE_SEVERITIES=$(echo "${SARIF}" | jq -c '
+            .runs[0].tool.driver.rules
+            | map({key: .id, value: (.properties["security-severity"] // "0" | tonumber)})
+            | from_entries
+          ')
+
+          CRITICAL_COUNT=$(echo "${SARIF}" | jq --argjson s "${RULE_SEVERITIES}" '
+            [.runs[0].results[] | select($s[.ruleId] >= 9.0)] | length
+          ')
+          HIGH_COUNT=$(echo "${SARIF}" | jq --argjson s "${RULE_SEVERITIES}" '
+            [.runs[0].results[] | select($s[.ruleId] >= 7.0 and $s[.ruleId] < 9.0)] | length
+          ')
+          TOTAL=$((CRITICAL_COUNT + HIGH_COUNT))
+
+          {
+            echo "# Scheduled ECR Grype Summary"
+            echo ""
+            echo "Image: \`${{ env.image }}\`"
+            echo ""
+            if [[ ${TOTAL} -eq 0 ]]; then
+              echo "✅ No fixable high or critical vulnerabilities found."
+            else
+              echo "❌ ${CRITICAL_COUNT} critical, ${HIGH_COUNT} high fixable vulnerabilities found."
+            fi
+          } | tee -a "${GITHUB_STEP_SUMMARY}"
+
+          {
+            echo "critical-count=${CRITICAL_COUNT}"
+            echo "high-count=${HIGH_COUNT}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Fail on Findings
+        if: steps.process_scan_result.outputs.critical-count > 0 || steps.process_scan_result.outputs.high-count > 0
+        shell: bash
+        env:
+          CRITICAL_COUNT: ${{ steps.process_scan_result.outputs.critical-count }}
+          HIGH_COUNT: ${{ steps.process_scan_result.outputs.high-count }}
+        run: |
+          echo "Found ${CRITICAL_COUNT} critical and ${HIGH_COUNT} high severity fixable vulnerabilities"
+          exit 1

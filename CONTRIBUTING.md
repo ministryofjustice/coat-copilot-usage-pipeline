@@ -127,15 +127,24 @@ Two deliberate behaviours you should preserve if you touch `main.py`:
 ## Deployment
 
 The container is built and pushed by the shared Analytical Platform workflow in
-`.github/workflows/release-container.yml`, which triggers **on a pushed tag**. The
-image is then referenced by a task in the
+`.github/workflows/release-container.yml`, which triggers **on a pushed tag** and
+publishes to ECR. After a successful release,
+[validate-released-image.yml](.github/workflows/validate-released-image.yml) runs
+the same ECR checks Analytical Platform Airflow performs (image exists, size,
+structure test, Grype) before you open a PR there. A
+[weekly scheduled ECR Grype scan](.github/workflows/scheduled-ecr-grype.yml) also
+runs against the latest release tag so newly disclosed fixable high/critical CVEs
+are caught between releases.
+
+The image is then referenced by a task in the
 [analytical-platform-airflow](https://github.com/ministryofjustice/analytical-platform-airflow)
 manifest, which is where the schedule, the per-task `env_vars` (including the
 buckets), and the injection of the `enterprise-billing-token` secret are defined.
 That manifest lives in the Airflow repo, not here.
 
-PRs are gated by the shared test-container, scan-container, and dependency-review
-workflows.
+PRs are gated by the shared test-container and scan-container workflows, plus
+[validate-ap-image.yml](.github/workflows/validate-ap-image.yml) (image size and
+base-image currency) and dependency-review.
 
 ## Contributions, forks, and governance
 

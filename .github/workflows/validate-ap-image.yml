@@ -1,0 +1,99 @@
+---
+name: Validate AP Image
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions: {}
+
+jobs:
+  validate-image:
+    name: AP Image Check (pre-release)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Octo STS
+        uses: ministryofjustice/analytical-platform-github-actions/octo-sts@72f9c303ec3becced97e2d4472122fee783ff4a4 # v8.0.1
+
+      - name: Build
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          push: false
+          tags: ${{ github.sha }}
+
+      - name: Check Image Size
+        id: check_image_size
+        shell: bash
+        env:
+          IMAGE: ${{ github.sha }}
+          THRESHOLD_GB: 4
+        run: |
+          imageSize=$(docker inspect "${IMAGE}" --format='{{.Size}}')
+          imageSizeGB=$((imageSize / 1024 / 1024 / 1024))
+          imageSizeMB=$((imageSize / 1024 / 1024))
+
+          echo "Image size: ${imageSizeMB} MB (${imageSizeGB} GB)"
+
+          if [[ "${imageSizeGB}" -gt "${THRESHOLD_GB}" ]]; then
+            echo "Image size (${imageSizeGB} GB) exceeds threshold (${THRESHOLD_GB} GB)"
+            exit 1
+          fi
+
+      - name: Check Base Image Version
+        id: check_base_image_version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          imageName=$(grep "^FROM" Dockerfile | cut -d' ' -f2 | cut -d':' -f1 | cut -d'@' -f1)
+          imageVersion=$(grep "^FROM" Dockerfile | cut -d':' -f2 | cut -d'@' -f1)
+          imageRepo=${imageName#ghcr.io/}
+
+          latestVersion=$(gh release list --repo "${imageRepo}" --exclude-drafts --exclude-pre-releases --json "isLatest,tagName" | jq -r '.[] | select(.isLatest == true) | .tagName')
+
+          {
+            echo "upstream-image-repo=${imageRepo}"
+            echo "upstream-image-version=${latestVersion}"
+          } >> "${GITHUB_ENV}"
+
+          if [[ "${imageVersion}" != "${latestVersion}" ]]; then
+            echo "Image version (${imageVersion}) does not match latest upstream (${latestVersion})"
+            exit 1
+          fi
+
+          echo "Image version (${imageVersion}) matches latest upstream (${latestVersion})"
+
+      - name: Comment on Image Size Failure
+        if: failure() && steps.check_image_size.outcome == 'failure'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Container image exceeds the 4 GB size limit enforced by Analytical Platform Airflow. Reduce image size before releasing.',
+            })
+
+      - name: Comment on Base Image Version Mismatch
+        if: failure() && steps.check_base_image_version.outcome == 'failure'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Provided image does not use the latest version (${process.env['upstream-image-version']}) of [${process.env['upstream-image-repo']}](https://github.com/${process.env['upstream-image-repo']}/releases/latest). Please ensure you are using the latest version of the base image in your Dockerfile.`,
+            })
