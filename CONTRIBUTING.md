@@ -11,7 +11,7 @@ testing it, extending it, and releasing it.
 ├── src/
 │   ├── main.py          # Entrypoint: resolves paths, walks the days, writes Parquet
 │   ├── config.py        # All env-var config + bucket/path resolution
-│   ├── dates.py         # BACKFILL_RANGE -> the list of days to process
+│   ├── dates.py         # BACKFILL_START_DATE -> the list of days to process
 │   ├── download.py      # Copilot users-1-day metrics report -> DataFrame (in memory)
 │   ├── credits.py       # DataFrame -> per-user credit rows
 │   ├── billing.py       # Enterprise ai_credit/usage billing API -> usageItems

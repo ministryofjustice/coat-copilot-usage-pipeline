@@ -105,8 +105,8 @@ person, day, language and feature.
 | `SECRET_ENTERPRISE_BILLING_TOKEN` | _(required)_ | GitHub token used for **both** the metrics report and the enterprise billing call. Needs **enterprise-level** Copilot metrics read (or org-level, if `ORG` is set) **and** `manage_billing:enterprise`. Injected by Analytical Platform Airflow from the `enterprise-billing-token` secret; for local runs, export it. |
 | `ORG` | _(empty)_ | optional override: when set, the metrics report is fetched org-scoped (`/orgs/{org}/...`) instead of enterprise-scoped. Leave empty for enterprise-wide coverage. Intended for deployments that only hold org-level metrics access. |
 | `ENTERPRISE_SLUG` | `ministry-of-justice-uk` | enterprise slug in **both** the metrics-reports and the billing API URLs |
-| `REPORT_DAY` | yesterday (UTC) | target day for a single-day run, `YYYY-MM-DD` (ignored when `BACKFILL_RANGE` is set) |
-| `BACKFILL_RANGE` | _(empty)_ | `` (empty) = single day; `week` or `month` = catch-up range (see below) |
+| `REPORT_DAY` | yesterday (UTC) | target day for a single-day run, `YYYY-MM-DD` (ignored when `BACKFILL_START_DATE` is set) |
+| `BACKFILL_START_DATE` | _(empty)_ | `` (empty) = single day; `YYYY-MM-DD` = start date for catch-up range (see below) |
 
 > The output bucket is chosen by `MODE` and read from `DEV_BUCKET` / `PROD_BUCKET`
 > (no bucket names are hardcoded). A missing bucket for the active `MODE`, or a
@@ -114,7 +114,7 @@ person, day, language and feature.
 
 ## Backfill range
 
-`BACKFILL_RANGE` runs the job over several days in one invocation, always ending
+`BACKFILL_START_DATE` runs the job over several days in one invocation, always ending
 **yesterday (UTC)**:
 
 | value | days processed |
