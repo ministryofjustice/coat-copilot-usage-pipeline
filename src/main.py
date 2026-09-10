@@ -104,7 +104,7 @@ def main():
     paths = config.resolve_paths()
 
     today = datetime.now(timezone.utc).date()
-    days = report_days(config.backfill_range, config.report_day, today)
+    days = report_days(config.backfill_start_date, config.report_day, today)
     logger.info("Processing %d day(s): %s .. %s", len(days), days[0], days[-1])
 
     # One download per day, three datasets out of it, all written before any

@@ -27,7 +27,7 @@ output_prefix = os.environ.get("OUTPUT_PREFIX", "reports-live-consolidated")
 
 # Optional multi-day backfill: "" = single day (report_day), "week" or "month"
 # = that period of today up to yesterday (UTC). See dates.report_days.
-backfill_range = os.environ.get("BACKFILL_RANGE", "").strip().lower()
+backfill_start_date = os.environ.get("BACKFILL_START_DATE", "").strip().lower()
 
 # Output S3 buckets by MODE, injected as env vars by the Airflow manifest.
 DEV_BUCKET = os.environ.get("DEV_BUCKET", "")

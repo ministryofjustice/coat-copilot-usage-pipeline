@@ -37,7 +37,7 @@ def _patch_common(monkeypatch, calls):
     monkeypatch.setattr(main.config, "org", "")
     monkeypatch.setattr(main.config, "enterprise_slug", "slug")
     monkeypatch.setattr(main.config, "report_day", "2026-06-25")
-    monkeypatch.setattr(main.config, "backfill_range", "")
+    monkeypatch.setattr(main.config, "backfill_start_date", "")
     monkeypatch.setattr(main.config, "resolve_paths", lambda: PATHS)
     monkeypatch.setattr(
         main.wr.s3, "to_parquet",
