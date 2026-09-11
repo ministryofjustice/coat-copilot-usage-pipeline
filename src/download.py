@@ -38,6 +38,12 @@ def fetch_download_links(enterprise_slug, day, token, org=""):
     }
     response = requests.get(url, headers=headers, params={"day": day}, timeout=30)
     response.raise_for_status()
+
+    try:
+        download_links = response.json().get("download_links", [])
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
     return response.json().get("download_links", [])
 
 
