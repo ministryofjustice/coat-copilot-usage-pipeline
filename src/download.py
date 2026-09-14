@@ -37,11 +37,15 @@ def fetch_download_links(enterprise_slug, day, token, org=""):
         "X-GitHub-Api-Version": API_VERSION,
     }
     response = requests.get(url, headers=headers, params={"day": day}, timeout=30)
+
     response.raise_for_status()
 
-    print(f"Response from {url}: {response}")
+    payload = response.json()
 
-    return response.json().get("download_links", [])
+    print(f"Response from {url}: {response}")
+    print(f"Payload: {repr(payload)[:1000]}")
+
+    return payload.get("download_links", [])
 
 
 def parse_ndjson(bodies):
