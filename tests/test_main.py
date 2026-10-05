@@ -113,7 +113,8 @@ def test_collect_all_rows_downloads_each_day_once(monkeypatch):
         return _report_frame(login=day)
 
     monkeypatch.setattr(main, "read_report", fake_read)
-    frames = main.collect_all_rows(["a", "b"])
+    frames, unavailable = main.collect_all_rows(["a", "b"])
+    assert unavailable == []
     # the report download is the largest cost in the job; three datasets come
     # out of one call per day, never one call per dataset
     assert reads == ["a", "b"]
@@ -132,7 +133,8 @@ def test_collect_all_rows_skips_missing_days(monkeypatch):
         return _report_frame(login=day)
 
     monkeypatch.setattr(main, "read_report", fake_read)
-    frames = main.collect_all_rows(["a", "b", "c"])
+    frames, unavailable = main.collect_all_rows(["a", "b", "c"])
+    assert unavailable == ["b"]
     assert frames["credits_by_user"]["day"].tolist() == ["a", "c"]
     assert frames["telemetry_by_user"]["day"].tolist() == ["a", "c"]
 
@@ -145,8 +147,39 @@ def test_collect_all_rows_keeps_person_rows_with_no_credits(monkeypatch):
         main, "read_report",
         lambda *a, **kw: _report_frame(login="a", credits=0.0),
     )
-    frames = main.collect_all_rows(["a"])
+    frames, unavailable = main.collect_all_rows(["a"])
+    assert unavailable == []
     # credits_by_user drops a zero-credit person; telemetry_by_user must not,
     # because a person-day with no spend and no activity is still a fact.
     assert frames["credits_by_user"].empty
     assert len(frames["telemetry_by_user"]) == 1
+
+
+def test_main_exits_when_daily_report_is_not_ready(monkeypatch):
+    calls = []
+    billing = []
+    _patch_common(monkeypatch, calls)
+    monkeypatch.setattr(main, "read_report", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        main, "fetch_billing", lambda *a: billing.append(a) or []
+    )
+    with pytest.raises(SystemExit) as exc:
+        main.main()
+    assert exc.value.code == main.REPORT_NOT_READY_EXIT_CODE
+    assert calls == []
+    assert billing == []
+
+
+def test_main_backfill_continues_when_report_is_not_ready(monkeypatch):
+    calls = []
+    billing = []
+    _patch_common(monkeypatch, calls)
+    monkeypatch.setattr(main.config, "backfill_start_date", "2026-06-20")
+    monkeypatch.setattr(main, "report_days", lambda *a: ["2026-06-24", "2026-06-25"])
+    monkeypatch.setattr(main, "read_report", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        main, "fetch_billing", lambda *a: billing.append(a) or []
+    )
+    main.main()
+    assert calls == []
+    assert len(billing) == 2
