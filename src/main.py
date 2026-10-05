@@ -15,6 +15,10 @@ from telemetry import build_language_rows, build_user_rows
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
+# Airflow maps this exit code to a skipped task (skip_on_exit_code), so a
+# GitHub processing delay does not page the alerts channel as a failure.
+REPORT_NOT_READY_EXIT_CODE = 99
+
 
 def _write(rows, path):
     wr.s3.to_parquet(
@@ -41,14 +45,19 @@ def collect_all_rows(days):
     builder that reads it. The download is the largest cost in the job, so it
     is never repeated per dataset.
 
-    Returns {dataset name: DataFrame}, empty frames included.
+    Returns ({dataset name: DataFrame}, days whose report was not published).
+    A missing report (None) is a GitHub processing delay. An empty frame is a
+    published report with no rows, and is not recorded as unavailable.
     """
     frames = {name: [] for name in REPORT_DATASETS}
+    unavailable_days = []
     for day in days:
         df = read_report(
             config.enterprise_slug, day, config.billing_token, config.org
         )
         if df is None or df.empty:
+            if df is None:
+                unavailable_days.append(day)
             logger.info("No report data for %s; skipping day", day)
             continue
         validate_credits_field(df)
@@ -70,10 +79,11 @@ def collect_all_rows(days):
         else:
             frames["telemetry_by_user_activity"].append(language_rows)
 
-    return {
+    collected = {
         name: pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
         for name, parts in frames.items()
     }
+    return collected, unavailable_days
 
 
 def collect_model_rows(days):
@@ -87,6 +97,17 @@ def collect_model_rows(days):
             continue
         frames.append(build_model_rows(items, day))
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+def _defer_for_processing_delay(days, unavailable_days):
+    """Daily runs defer when every requested day is still unpublished.
+
+    Backfills (BACKFILL_START_DATE set) always continue, so one delayed day
+    does not cancel the rest of the range.
+    """
+    if config.backfill_start_date:
+        return False
+    return bool(days) and set(unavailable_days) == set(days)
 
 
 def run_per_model(model_path, days):
@@ -108,8 +129,21 @@ def main():
     logger.info("Processing %d day(s): %s .. %s", len(days), days[0], days[-1])
 
     # One download per day, three datasets out of it, all written before any
-    # billing call is made.
-    for name, rows in collect_all_rows(days).items():
+    # billing call is made. A daily run whose report is still unpublished exits
+    # before those writes so the task is skipped, not failed. Backfills keep
+    # whichever days are already available.
+    frames, unavailable_days = collect_all_rows(days)
+    if _defer_for_processing_delay(days, unavailable_days):
+        logger.warning(
+            "Copilot users-1-day report for %s is not ready "
+            "(GitHub processing delay). Exiting %s so Airflow skips this run; "
+            "the next scheduled run will retry.",
+            ", ".join(unavailable_days),
+            REPORT_NOT_READY_EXIT_CODE,
+        )
+        raise SystemExit(REPORT_NOT_READY_EXIT_CODE)
+
+    for name, rows in frames.items():
         if rows.empty:
             logger.info(
                 "No %s rows across %d day(s); nothing written", name, len(days)
