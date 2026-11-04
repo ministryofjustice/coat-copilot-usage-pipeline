@@ -1,4 +1,4 @@
-awswrangler==3.17.0
+awswrangler==3.18.0
 pandas==3.0.6
 requests==2.34.2
 urllib3==2.8.0
